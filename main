@@ -1,32 +1,22 @@
 (function() {
     'use strict';
-
-    // Уникальное имя плагина для проверки дублирования
-    if (window.newdeaf_plugin_loaded) return;
     
-    // Функция запуска плагина
-    function startPlugin() {
-        // Определяем версию Lampa
-        var appVersion = Lampa.Manifest.app_digital || 0;
-        var pluginVersion = appVersion >= 30000 ? 'v3' : 'v2';
+    if (window.newdeaf_bootstrap_loaded) return;
+    
+    function loadPlugin() {
+        var version = Lampa.Manifest.app_digital >= 30000 ? 'v3' : 'v2';
+        var url = 'https://' + window.location.hostname + '/lampa-newdeaf-plugin/' + version + '/plugin.js';
         
-        // Загружаем соответствующую версию плагина
-        var scriptUrl = 'https://' + window.location.hostname + '/lampa-newdeaf-plugin/' + 
-                       pluginVersion + '/plugin.js';
-        
-        Lampa.Utils.putScriptAsync(scriptUrl, function() {
-            console.log('[NewDeaf] Плагин загружен');
+        Lampa.Utils.putScriptAsync(url, function() {
+            console.log('[NewDeaf] Плагин версии', version, 'загружен');
         });
     }
     
-    // Ждём готовности приложения
     if (window.appready) {
-        startPlugin();
+        loadPlugin();
     } else {
-        Lampa.Listener.follow('app', function() {
-            startPlugin();
-        });
+        Lampa.Listener.follow('app', loadPlugin);
     }
     
-    window.newdeaf_plugin_loaded = true;
+    window.newdeaf_bootstrap_loaded = true;
 })();
