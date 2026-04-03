@@ -1,22 +1,15 @@
-(function() {
-    'use strict';
+(function(){
+    if(window.newdeaf_loaded) return;
     
-    if (window.newdeaf_bootstrap_loaded) return;
+    Lampa.Source.add({
+        name: 'newdeaf',
+        title: 'NewDeaf',
+        protocol: 'https://',
+        search: function(q,p,cb){ cb([]); },
+        info: function(u,cb){ cb({}); },
+        player: function(u,cb){ cb(false); }
+    });
     
-    function loadPlugin() {
-        var version = Lampa.Manifest.app_digital >= 30000 ? 'v3' : 'v2';
-        var url = 'https://' + window.location.hostname + '/lampa-newdeaf-plugin/' + version + '/plugin.js';
-        
-        Lampa.Utils.putScriptAsync(url, function() {
-            console.log('[NewDeaf] Плагин версии', version, 'загружен');
-        });
-    }
-    
-    if (window.appready) {
-        loadPlugin();
-    } else {
-        Lampa.Listener.follow('app', loadPlugin);
-    }
-    
-    window.newdeaf_bootstrap_loaded = true;
+    window.newdeaf_loaded = true;
+    console.log('[NewDeaf] Плагин загружен');
 })();
