@@ -1,0 +1,1 @@
+# lampa-newdeaf-plugin
