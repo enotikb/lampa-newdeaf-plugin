@@ -1,0 +1,32 @@
+(function() {
+    'use strict';
+
+    // Уникальное имя плагина для проверки дублирования
+    if (window.newdeaf_plugin_loaded) return;
+    
+    // Функция запуска плагина
+    function startPlugin() {
+        // Определяем версию Lampa
+        var appVersion = Lampa.Manifest.app_digital || 0;
+        var pluginVersion = appVersion >= 30000 ? 'v3' : 'v2';
+        
+        // Загружаем соответствующую версию плагина
+        var scriptUrl = 'https://' + window.location.hostname + '/lampa-newdeaf-plugin/' + 
+                       pluginVersion + '/plugin.js';
+        
+        Lampa.Utils.putScriptAsync(scriptUrl, function() {
+            console.log('[NewDeaf] Плагин загружен');
+        });
+    }
+    
+    // Ждём готовности приложения
+    if (window.appready) {
+        startPlugin();
+    } else {
+        Lampa.Listener.follow('app', function() {
+            startPlugin();
+        });
+    }
+    
+    window.newdeaf_plugin_loaded = true;
+})();

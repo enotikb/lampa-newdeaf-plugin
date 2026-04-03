@@ -1,0 +1,111 @@
+(function() {
+    'use strict';
+    
+    if (window.newdeaf_plugin_loaded) return;
+    
+    let domainCache = {
+        domain: null,
+        time: null,
+        ttl: 3600000
+    };
+    
+    function getDomain(callback) {
+        if (domainCache.domain && (Date.now() - domainCache.time) < domainCache.ttl) {
+            callback(domainCache.domain);
+            return;
+        }
+        
+        Lampa.Utils.ajax('https://newdeaf.co', {
+            method: 'HEAD',
+            followRedirect: false
+        }, function(resp, xhr) {
+            let location = xhr.getResponseHeader('Location');
+            if (location) {
+                let match = location.match(/https?:\/\/([^\/]+)/);
+                if (match) {
+                    domainCache.domain = match[1];
+                    domainCache.time = Date.now();
+                    callback(domainCache.domain);
+                    return;
+                }
+            }
+            
+            let d = new Date();
+            let day = d.getDate();
+            let month = d.toLocaleString('en', { month: 'short' }).toLowerCase();
+            domainCache.domain = `${day}${month}.newdeaf.co`;
+            domainCache.time = Date.now();
+            callback(domainCache.domain);
+        });
+    }
+    
+    Lampa.Source.add({
+        name: 'newdeaf',
+        title: 'NewDeaf',
+        protocol: 'https://',
+        
+        search: function(query, page, callback) {
+            getDomain(function(domain) {
+                let url = `https://${domain}/search/?q=${encodeURIComponent(query)}`;
+                Lampa.Utils.ajax(url, function(data) {
+                    let results = [];
+                    let regex = /<a[^>]+href="([^"]+)"[^>]*>([^<]+)<\/a>/gi;
+                    let match;
+                    
+                    while ((match = regex.exec(data)) !== null) {
+                        if (match[2].toLowerCase().includes(query.toLowerCase())) {
+                            results.push({
+                                title: match[2],
+                                url: match[1]
+                            });
+                        }
+                    }
+                    
+                    callback(results);
+                });
+            });
+        },
+        
+        info: function(url, callback) {
+            getDomain(function(domain) {
+                let fullUrl = url.startsWith('http') ? url : `https://${domain}${url}`;
+                Lampa.Utils.ajax(fullUrl, function(data) {
+                    let info = {
+                        title: 'Загрузка...',
+                        description: '',
+                        poster: '',
+                        seasons: []
+                    };
+                    
+                    let titleMatch = data.match(/<h1[^>]*>([^<]+)<\/h1>/i);
+                    if (titleMatch) info.title = titleMatch[1].replace('Сериал', '').trim();
+                    
+                    let seasonRegex = /<a[^>]+href="([^"]+)"[^>]*>(\d+)\s+сезон<\/a>/gi;
+                    let seasonMatch;
+                    
+                    while ((seasonMatch = seasonRegex.exec(data)) !== null) {
+                        info.seasons.push({
+                            season: parseInt(seasonMatch[2]),
+                            url: seasonMatch[1]
+                        });
+                    }
+                    
+                    callback(info);
+                });
+            });
+        },
+        
+        player: function(url, callback) {
+            getDomain(function(domain) {
+                let fullUrl = url.startsWith('http') ? url : `https://${domain}${url}`;
+                Lampa.Utils.ajax(fullUrl, function(data) {
+                    let iframeMatch = data.match(/<iframe[^>]+src="([^"]+)"[^>]*>/i);
+                    callback(iframeMatch ? iframeMatch[1] : false);
+                });
+            });
+        }
+    });
+    
+    window.newdeaf_plugin_loaded = true;
+    console.log('[NewDeaf] Плагин успешно инициализирован');
+})();
