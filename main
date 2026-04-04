@@ -1,15 +1,22 @@
-(function(){
-    if(window.newdeaf_loaded) return;
+(function() {
+    'use strict';
     
-    Lampa.Source.add({
-        name: 'newdeaf',
-        title: 'NewDeaf',
-        protocol: 'https://',
-        search: function(q,p,cb){ cb([]); },
-        info: function(u,cb){ cb({}); },
-        player: function(u,cb){ cb(false); }
-    });
+    if (window.lordfilm_bootstrap_loaded) return;
     
-    window.newdeaf_loaded = true;
-    console.log('[NewDeaf] Плагин загружен');
+    function loadPlugin() {
+        var version = Lampa.Manifest.app_digital >= 30000 ? 'v3' : 'v2';
+        var url = 'https://' + window.location.hostname + '/lordfilm-plugin/' + version + '/plugin.js';
+        
+        Lampa.Utils.putScriptAsync(url, function() {
+            console.log('[Lordfilm] Плагин версии', version, 'загружен');
+        });
+    }
+    
+    if (window.appready) {
+        loadPlugin();
+    } else {
+        Lampa.Listener.follow('app', loadPlugin);
+    }
+    
+    window.lordfilm_bootstrap_loaded = true;
 })();
