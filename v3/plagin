@@ -1,111 +1,118 @@
 (function() {
     'use strict';
     
-    if (window.newdeaf_plugin_loaded) return;
+    if (window.lordfilm_plugin_loaded) return;
+
+
+    const BASE_URL = 'https://lordfilm-2026.org';
     
-    let domainCache = {
-        domain: null,
-        time: null,
-        ttl: 3600000
-    };
-    
-    function getDomain(callback) {
-        if (domainCache.domain && (Date.now() - domainCache.time) < domainCache.ttl) {
-            callback(domainCache.domain);
-            return;
-        }
-        
-        Lampa.Utils.ajax('https://newdeaf.co', {
-            method: 'HEAD',
-            followRedirect: false
-        }, function(resp, xhr) {
-            let location = xhr.getResponseHeader('Location');
-            if (location) {
-                let match = location.match(/https?:\/\/([^\/]+)/);
-                if (match) {
-                    domainCache.domain = match[1];
-                    domainCache.time = Date.now();
-                    callback(domainCache.domain);
-                    return;
-                }
-            }
-            
-            let d = new Date();
-            let day = d.getDate();
-            let month = d.toLocaleString('en', { month: 'short' }).toLowerCase();
-            domainCache.domain = `${day}${month}.newdeaf.co`;
-            domainCache.time = Date.now();
-            callback(domainCache.domain);
-        });
+    function cleanText(html) {
+        if (!html) return '';
+        return html.replace(/<[^>]*>/g, '').trim();
     }
     
     Lampa.Source.add({
-        name: 'newdeaf',
-        title: 'NewDeaf',
-        protocol: 'https://',
+        name: 'lordfilm',
+        title: 'Lordfilm',
+        protocol: BASE_URL,
         
         search: function(query, page, callback) {
-            getDomain(function(domain) {
-                let url = `https://${domain}/search/?q=${encodeURIComponent(query)}`;
-                Lampa.Utils.ajax(url, function(data) {
-                    let results = [];
-                    let regex = /<a[^>]+href="([^"]+)"[^>]*>([^<]+)<\/a>/gi;
-                    let match;
-                    
-                    while ((match = regex.exec(data)) !== null) {
-                        if (match[2].toLowerCase().includes(query.toLowerCase())) {
-                            results.push({
-                                title: match[2],
-                                url: match[1]
-                            });
-                        }
-                    }
-                    
-                    callback(results);
-                });
+            // Формируем URL для поиска
+            let url = `${BASE_URL}/index.php?do=search&subaction=search&q=${encodeURIComponent(query)}`;
+            
+            Lampa.Utils.ajax(url, function(data) {
+                let results = [];
+                
+                // Типичный блок: <div class="short"><a href="/123/">Название</a></div>
+                let itemRegex = /<div[^>]*class="short"[^>]*>.*?<a[^>]+href="([^"]+)"[^>]*>([^<]+)<\/a>.*?<img[^>]+src="([^"]+)".*?<\/div>/gis;
+                let match;
+                
+                while ((match = itemRegex.exec(data)) !== null) {
+                    results.push({
+                        title: cleanText(match[2]),
+                        url: match[1],
+                        poster: match[3] || null
+                    });
+                }
+                
+                callback(results);
             });
         },
         
         info: function(url, callback) {
-            getDomain(function(domain) {
-                let fullUrl = url.startsWith('http') ? url : `https://${domain}${url}`;
-                Lampa.Utils.ajax(fullUrl, function(data) {
-                    let info = {
-                        title: 'Загрузка...',
-                        description: '',
-                        poster: '',
-                        seasons: []
-                    };
-                    
-                    let titleMatch = data.match(/<h1[^>]*>([^<]+)<\/h1>/i);
-                    if (titleMatch) info.title = titleMatch[1].replace('Сериал', '').trim();
-                    
-                    let seasonRegex = /<a[^>]+href="([^"]+)"[^>]*>(\d+)\s+сезон<\/a>/gi;
-                    let seasonMatch;
-                    
-                    while ((seasonMatch = seasonRegex.exec(data)) !== null) {
-                        info.seasons.push({
-                            season: parseInt(seasonMatch[2]),
-                            url: seasonMatch[1]
+            let fullUrl = url.startsWith('http') ? url : BASE_URL + url;
+            
+            Lampa.Utils.ajax(fullUrl, function(data) {
+                let info = {
+                    title: 'Без названия',
+                    description: '',
+                    poster: '',
+                    year: '',
+                    country: '',
+                    genres: '',
+                    videos: [] // Список видео для плеера
+                };
+                
+                let titleMatch = data.match(/<h1[^>]*>([^<]+)<\/h1>/i);
+                if (titleMatch) info.title = cleanText(titleMatch[1]);
+                
+                let descMatch = data.match(/<div[^>]*class="full-text"[^>]*>(.*?)<\/div>/is);
+                if (descMatch) info.description = cleanText(descMatch[1]);
+                
+                let posterMatch = data.match(/<img[^>]+class="poster"[^>]+src="([^"]+)"/i);
+                if (posterMatch) info.poster = posterMatch[1];
+                
+                let yearMatch = data.match(/Год выхода:<\/span>\s*([^<]+)/i);
+                if (yearMatch) info.year = cleanText(yearMatch[1]);
+                
+                let countryMatch = data.match(/Страна:<\/span>\s*([^<]+)/i);
+                if (countryMatch) info.country = cleanText(countryMatch[1]);
+                
+                let genreMatch = data.match(/Жанр:<\/span>\s*([^<]+)/i);
+                if (genreMatch) info.genres = cleanText(genreMatch[1]);
+                
+                let videoMatch = data.match(/<iframe[^>]+src="([^"]+)"[^>]*>/i);
+                if (videoMatch && videoMatch[1]) {
+                    info.videos.push({
+                        url: videoMatch[1],
+                        quality: 'HD'
+                    });
+                } else {
+                    // Альтернативный поиск: ссылка на видео в data-атрибуте
+                    let altMatch = data.match(/data-video="([^"]+)"/i);
+                    if (altMatch && altMatch[1]) {
+                        info.videos.push({
+                            url: altMatch[1],
+                            quality: 'HD'
                         });
                     }
-                    
-                    callback(info);
-                });
+                }
+                
+                callback(info);
             });
         },
         
         player: function(url, callback) {
-            getDomain(function(domain) {
-                let fullUrl = url.startsWith('http') ? url : `https://${domain}${url}`;
-                Lampa.Utils.ajax(fullUrl, function(data) {
-                    let iframeMatch = data.match(/<iframe[^>]+src="([^"]+)"[^>]*>/i);
-                    callback(iframeMatch ? iframeMatch[1] : false);
-                });
+            // Если ссылка уже прямая, возвращаем её
+            if (url.startsWith('http') && (url.includes('.mp4') || url.includes('/embed/'))) {
+                callback(url);
+                return;
+            }
+            
+            // Иначе загружаем страницу и ищем iframe
+            let fullUrl = url.startsWith('http') ? url : BASE_URL + url;
+            
+            Lampa.Utils.ajax(fullUrl, function(data) {
+                let iframeMatch = data.match(/<iframe[^>]+src="([^"]+)"[^>]*>/i);
+                if (iframeMatch && iframeMatch[1]) {
+                    callback(iframeMatch[1]);
+                } else {
+                    callback(false);
+                }
             });
         }
     });
     
-    window.newdeaf_plugin_loaded = true;
-    console.log('[NewDeaf] Плагин успешно инициализирован');
+    window.lordfilm_plugin_loaded = true;
+    console.log('[Lordfilm] Плагин успешно инициализирован');
 })();
